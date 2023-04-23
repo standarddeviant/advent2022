@@ -3,74 +3,6 @@ use std::io::{self, BufRead};
 use std::path::Path;
 use std::collections::HashMap;
 
-pub fn run(fname: &str) {
-    part1_simple(fname);
-    part2_simple(fname);
-}
-
-fn part2_simple(fname: &str) {
-    let scores: Vec<i32> = game_scores_2(fname);
-    let sum: i32 =  scores.iter().sum();
-    // println!("scores = {:?}", scores);
-    println!("part2: sum(scores) = {}", sum);
-}
-
-
-fn game_scores_2(fname: &str) -> Vec<i32> {
-    let mut out: Vec<i32> = vec![];
-    let rpclut = HashMap::from([
-        ("A", RPC::Rock), ("B", RPC::Paper), ("C", RPC::Scissor),
-        ("X", RPC::Rock), ("Y", RPC::Paper), ("Z", RPC::Scissor),
-    ]);
-
-    // File hosts must exist in current path before this produces output
-    if let Ok(lines) = read_lines(fname) {
-        // Consumes the iterator, returns an (Optional) String
-        for line in lines {
-            if let Ok(s) = line {
-                let keys: Vec<&str> = s.split(" ").collect();
-                let theirs: RPC = rpclut[keys[0]];
-                let mine: RPC = match theirs {
-                    RPC::Rock => {
-                        match keys[1] {
-                            "X" => RPC::Scissor, 
-                            "Y" => RPC::Rock, 
-                            "Z" => RPC::Paper,
-                            _ => RPC::Rock
-                        }
-                    },
-                    RPC::Paper => {
-                        match keys[1] {
-                            "X" => RPC::Rock, 
-                            "Y" => RPC::Paper, 
-                            "Z" => RPC::Scissor,
-                            _ => RPC::Rock
-                        }
-                    },
-                    RPC::Scissor => {
-                        match keys[1] {
-                            "X" => RPC::Paper, 
-                            "Y" => RPC::Scissor, 
-                            "Z" => RPC::Rock,
-                            _ => RPC::Rock
-                        }
-                    }
-                }; // end let mine
-                out.push(calc_score(theirs, mine));
-           }
-        }
-    }
-    return out;
-}
-
-
-fn part1_simple(fname: &str) {
-    let scores: Vec<i32> = game_scores_1(fname);
-    let sum: i32 =  scores.iter().sum();
-    // println!("scores = {:?}", scores);
-    println!("part1: sum(scores) = {}", sum);
-}
-
 #[derive(Copy, Clone, Debug)]
 enum RPC {
     Rock,
@@ -78,34 +10,57 @@ enum RPC {
     Scissor
 }
 
-fn game_scores_1(fname: &str) -> Vec<i32> {
-    let mut out: Vec<i32> = vec![];
-    let rpclut = HashMap::from([
-        ("A", RPC::Rock), ("B", RPC::Paper), ("C", RPC::Scissor),
-        ("X", RPC::Rock), ("Y", RPC::Paper), ("Z", RPC::Scissor),
-    ]);
+pub fn run(fname: &str) {
+    let pairs = abcxyz_pairs(fname);
 
-    // File hosts must exist in current path before this produces output
-    if let Ok(lines) = read_lines(fname) {
-        // Consumes the iterator, returns an (Optional) String
-        for line in lines {
-            if let Ok(s) = line {
-                println!("{}", s);
-                let keys: Vec<&str> = s.split(" ").collect();
-                println!("{:?}", keys);
-                println!("{:?}, {:?}, {:?}", 
-                    rpclut[keys[0]], rpclut[keys[1]],
-                    calc_score(rpclut[keys[0]], rpclut[keys[1]])
-                );
- 
-                out.push(
-                    calc_score(
-                        rpclut[keys[0]],
-                        rpclut[keys[1]]
-                    )
-                );
-            }
-        }
+    let scores1: Vec<i32> = game_scores_1(&pairs);
+    let sum1: i32 =  scores1.iter().sum();
+    println!("part2: sum(scores) = {}", sum1);
+
+    let scores2: Vec<i32> = game_scores_2(&pairs);
+    let sum2: i32 =  scores2.iter().sum();
+    println!("part2: sum(scores) = {}", sum2);
+}
+
+fn game_scores_2(pairs: &Vec<(char, char)>) -> Vec<i32> {
+    let mut out: Vec<i32> = vec![];
+    let theirs_lut= HashMap::from([
+        ('A', RPC::Rock), ('B', RPC::Paper), ('C', RPC::Scissor)
+    ]);
+    let mine_lut= HashMap::from([
+        (('A', 'X'), RPC::Scissor), // rock ,   lose -> scissor
+        (('A', 'Y'), RPC::Rock   ), // rock ,   draw -> rock
+        (('A', 'Z'), RPC::Paper  ), // rock ,   win  -> paper
+        (('B', 'X'), RPC::Rock   ), // paper,   lose -> rock
+        (('B', 'Y'), RPC::Paper  ), // paper,   draw -> paper
+        (('B', 'Z'), RPC::Scissor), // paper,   win  -> scissor
+        (('C', 'X'), RPC::Paper  ), // scissor, lose -> paper
+        (('C', 'Y'), RPC::Scissor), // scissor, draw -> scissor
+        (('C', 'Z'), RPC::Rock   ), // scissor, win  -> rock
+    ]);
+    for pair in pairs {
+        out.push(calc_score(
+            theirs_lut[&pair.0],
+            mine_lut[&pair]
+        ))
+    }
+   return out;
+}
+
+
+fn game_scores_1(pairs: &Vec<(char, char)>) -> Vec<i32> {
+    let mut out: Vec<i32> = vec![];
+    let theirs_lut= HashMap::from([
+        ('A', RPC::Rock), ('B', RPC::Paper), ('C', RPC::Scissor)
+    ]);
+    let mine_lut= HashMap::from([
+        ('X', RPC::Rock), ('Y', RPC::Paper), ('Z', RPC::Scissor)
+    ]);
+    for pair in pairs {
+        out.push(calc_score(
+            theirs_lut[&pair.0],
+            mine_lut[&pair.1]
+        ))
     }
     return out;
 }
@@ -134,6 +89,26 @@ fn calc_score(theirs: RPC, mine: RPC) -> i32 {
             }
         }
     }
+}
+
+fn abcxyz_pairs(fname: &str) -> Vec<(char, char)> {
+    let mut out: Vec<(char, char)> = vec![];
+
+    // File hosts must exist in current path before this produces output
+    if let Ok(lines) = read_lines(fname) {
+        // Consumes the iterator, returns an (Optional) String
+        for line in lines {
+            if let Ok(s) = line {
+                let tokens: Vec<&str> = s.split(' ').collect();
+                let keys: (char, char) = (
+                    tokens[0].chars().nth(0).unwrap(),
+                    tokens[1].chars().nth(0).unwrap()
+                );
+                out.push(keys);
+           }
+        }
+    }
+    return out;
 }
 
 // The output is wrapped in a Result to allow matching on errors
