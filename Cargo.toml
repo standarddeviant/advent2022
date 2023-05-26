@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 regex = "1"
+# indextree = "4.6.0"
+ndarray = "0.15.0"
+ndarray-stats = "0.5.1"
