@@ -7,6 +7,61 @@ use ndarray_stats::QuantileExt;
 
 pub fn run(fname: &str) {
     let a: Array<i32, Ix2> = input_parse(fname);
+    part1(&a);
+    part2(&a);
+}
+
+fn part2(a: &Array<i32, Ix2>) {
+    let (ncols, nrows) = a.dim();
+    // let mut s: Array< u32, Ix2> = Array::zeros([ncols, nrows]);
+    let (mut max_score, mut max_row, mut max_col) = (0, 0, 0);
+    for ixcol in 1..ncols {
+        for ixrow in 1..nrows {
+            if let Some(this_val) = a.get((ixrow, ixcol)) {
+                /*
+                */
+                // let mut score;
+                fn score_part(val: &i32, av: ArrayView1<i32>) -> i32 {
+                    let mut out = 0;
+                    for tmpval in av.iter() {
+                        out += 1;
+                        if tmpval >= val {
+                            break;
+                        }
+                    }
+                    return out;
+                }
+
+                let north: ArrayView1<_> = a.slice(s![0..ixrow     ; -1,    ixcol     ]);
+                let south: ArrayView1<_> = a.slice(s![   ixrow+1..     ,    ixcol     ]);
+                let  east: ArrayView1<_> = a.slice(s![   ixrow         ,    ixcol+1.. ]);
+                let  west: ArrayView1<_> = a.slice(s![   ixrow         , 0..ixcol ; -1]);
+
+                // println!("[{ixrow}, {ixcol}]:\n    north={north}\n    south={south}\n    escore={east}\n    west={west}");
+                // if ixrow > 3 {
+                //     pass return;
+                // };
+                let (nscore, sscore, escore, wscore) = (
+                    score_part(this_val, north),
+                    score_part(this_val, south),
+                    score_part(this_val,  east),
+                    score_part(this_val,  west)
+                );
+                // println!("[{ixrow}, {ixcol}]: nscore={nscore}, sscore={sscore}, escore={escore}, wscore={wscore}");
+                let score = nscore * sscore * escore * wscore;
+                if score >= max_score {
+                    max_score = score;
+                    max_row = ixrow;
+                    max_col = ixcol;
+                }
+            }
+        }
+    }
+
+    println!("part2: max_score = {max_score} @ [r={max_row}, c={max_col}]");
+}
+
+fn part1(a: &Array<i32, Ix2>) {
     let (ncols, nrows) = a.dim();
     let mut b: Array< u32, Ix2> = Array::zeros([ncols, nrows]);
     //let ncols = a.shape().get(0).unwrap();
@@ -35,6 +90,7 @@ pub fn run(fname: &str) {
                             this_val > emax, this_val > wmax
                         );
                         let vizbool = nbool || sbool || ebool || wbool;
+                        /*
                         if vizbool {
                             println!("[true] {this_val} @ [{ixrow}, {ixcol}]");
                             println!("    north {} = {:?}", nbool, nmax);
@@ -42,7 +98,7 @@ pub fn run(fname: &str) {
                             println!("     east {} = {:?}", ebool, emax);
                             println!("     west {} = {:?}", wbool, wmax);
                             println!("     west = {west:?}");
-                        }
+                        } */
                         if vizbool {1} else {0}
                     };
                     *bref = viz as u32;
@@ -51,9 +107,11 @@ pub fn run(fname: &str) {
         }
     }
 
-    println!("b = {:?}", b);
-    println!("b.sum() = {:?}", b.sum());
+    // println!("b = {:?}", b);
+    println!("part1: b.sum() = {:?}", b.sum());
 }
+
+
 
 fn input_parse(fname: &str) -> Array<i32, Ix2>  { // <ndarray::OwnedRepr<i32>, Dim<[usize; 2]>> {
     // let mut vv: Vec<Vec<i32>> = vec![];
@@ -71,13 +129,7 @@ fn input_parse(fname: &str) -> Array<i32, Ix2>  { // <ndarray::OwnedRepr<i32>, D
                 for i32val in i32vec {
                     vv.push(i32val);
                 }
-                // let i32arr1: ArrayBase<ndarray::OwnedRepr<i32>, Dim<[usize; 1]>> = ndarray::arr1(&i32vec);
-                // vv.push(i32vec);
-                // vv.push(i32arr1);
-                //println!("{:?}", i32vec);
-                //println!("{:?}", ok_line.trim().split(""));
-                // println!("{ok_line}");
-            }
+           }
         }
     }
     // let a: ArrayBase<ndarray::OwnedRepr<i32>, Dim<[usize; 2]>> = 
@@ -85,7 +137,7 @@ fn input_parse(fname: &str) -> Array<i32, Ix2>  { // <ndarray::OwnedRepr<i32>, D
         Array::<i32, _>::from_vec(vv)
         .into_shape((ncols, nrows))
         .unwrap();
-    println!("{:?}", a);
+    // println!("{:?}", a);
     return a;
 
 }
