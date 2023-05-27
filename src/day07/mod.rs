@@ -14,7 +14,11 @@ enum FD {
 
 pub fn run(fname: &str) {
     let parser = parse_input(fname);
+    part1(&parser);
+    part2(&parser);
+}
 
+fn part1(parser: &Day7Parser) {
     let mut ltcount: usize = 0;
     let mut ltsum: usize= 0;
     /*
@@ -37,6 +41,29 @@ pub fn run(fname: &str) {
     println!("part1: ltcount = {ltcount}, ltsum = {ltsum}");
 }
 
+fn part2(parser: &Day7Parser) {
+    /* convenience constants */
+    let disk_size: usize = 70000000;
+    let disk_fill: usize = parser.sizes[0].unwrap();
+    let disk_space:usize = disk_size - disk_fill;
+    let needed_space: usize = 30000000;
+    let needed_free = needed_space - disk_space;
+
+    /* min search vars */
+    let mut min_dir_size = disk_size;
+    let mut min_dir_ix: usize = 0;
+    for ix in 0..parser.isdirs.len() {
+        if let Some(somesz) = parser.sizes[ix] {
+            if (somesz < min_dir_size) && (somesz >= needed_free) {
+                min_dir_ix = ix;
+                min_dir_size = somesz;
+            }
+        }
+    }
+
+    println!("part2: ");
+    parser.print_entry(min_dir_ix);
+}
 
 #[derive(Debug, Clone)]
 struct Day7Parser {
@@ -185,8 +212,9 @@ impl Day7Parser {
 
     pub fn print_entry(&self, ix: usize) {
         if ix < self.isdirs.len() {
-            println!("{ix}: d={}, p={}, ch={:?}",
+            println!("{ix:3}: d={}, sz={:?}, p={}, ch={:?}",
                 self.isdirs[ix],
+                self.sizes[ix],
                 self.intmap.get(&ix).unwrap(),
                 self.childrens[ix]
             );
