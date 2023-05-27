@@ -23,9 +23,9 @@ fn part1(parser: &Day7Parser) {
     let mut ltsum: usize= 0;
     /*
     */
-    for ix in 0..parser.isdirs.len() {
-        if parser.isdirs[ix] {
-            if let Some(somesz) = parser.sizes[ix] {
+    for ix in 0..parser.items.len() {
+        if parser.items[ix].isdir {
+            if let Some(somesz) = parser.items[ix].size {
                 if somesz <= 100000 {
                     // parser.print_entry(ix);
                     // print!("{ix}, ");
@@ -44,7 +44,7 @@ fn part1(parser: &Day7Parser) {
 fn part2(parser: &Day7Parser) {
     /* convenience constants */
     let disk_size: usize = 70000000;
-    let disk_fill: usize = parser.sizes[0].unwrap();
+    let disk_fill: usize = parser.items[0].size.unwrap();
     let disk_space:usize = disk_size - disk_fill;
     let needed_space: usize = 30000000;
     let needed_free = needed_space - disk_space;
@@ -52,8 +52,8 @@ fn part2(parser: &Day7Parser) {
     /* min search vars */
     let mut min_dir_size = disk_size;
     let mut min_dir_ix: usize = 0;
-    for ix in 0..parser.isdirs.len() {
-        if let Some(somesz) = parser.sizes[ix] {
+    for ix in 0..parser.items.len() {
+        if let Some(somesz) = parser.items[ix].size {
             if (somesz < min_dir_size) && (somesz >= needed_free) {
                 min_dir_ix = ix;
                 min_dir_size = somesz;
@@ -65,16 +65,21 @@ fn part2(parser: &Day7Parser) {
     parser.print_entry(min_dir_ix);
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
+struct FSItem {
+    isdir: bool,
+    children: Vec<usize>,
+    size: Option<usize>
+}
+ 
+#[derive(Debug)]
 struct Day7Parser {
     count: usize,
     pwdix: usize,
     pwdvec: Vec<String>,
-    isdirs: Vec<bool>,
     strmap: HashMap<String, usize>,
     intmap: HashMap<usize, String>,
-    childrens: Vec<Vec<usize>>,
-    sizes: Vec<Option<usize>>
+    items: Vec<FSItem>
 }
 
 impl Day7Parser {
@@ -83,12 +88,10 @@ impl Day7Parser {
             count: 0,
             pwdix: 0,
             pwdvec: vec![String::from("")],
-            isdirs: vec![],
             strmap: HashMap::new(),
             intmap: HashMap::new(),
-            childrens: vec![],
-            sizes: vec![]
-        }
+            items: vec![]
+       }
     }
 
     pub fn pwdstr(&self) -> String {
@@ -122,9 +125,11 @@ impl Day7Parser {
             // println!("    DBG: self.strmap.insert({}, {});", &pwdstr, self.count);
             self.strmap.insert(pwdstr.clone(), self.count);
             self.intmap.insert(self.count, pwdstr.clone());
-            self.isdirs.push(true);
-            self.childrens.push(vec![]); /* unnecessary vec for files */
-            self.sizes.push(None);
+            self.items.push(
+                FSItem { 
+                    isdir: true, children: vec![], size: None
+                }
+            );
             self.pwdix = self.count;
             self.count += 1;
         }
@@ -134,9 +139,13 @@ impl Day7Parser {
         /* only register if we've never seen it before per strmap */
         if !self.strmap.contains_key(path) {
             /* add child if pwdix is valid as self.childrens index */
-            if let Some(chvec) = self.childrens.get_mut(self.pwdix) {
-                chvec.push(self.count);
+            if(self.pwdix < self.items.len()) {
+                self.items[self.pwdix].children.push(self.count);
             }
+            /*
+            if let Some(chvec) = self.items[self.pwdix].children.push(self.count)
+                chvec.push(self.count);
+            } */
        
             /*
             println!("INFO: register \n    @ pwd = {:?}", path);
@@ -146,9 +155,14 @@ impl Day7Parser {
             */
             self.strmap.insert(path.clone(), self.count);
             self.intmap.insert(self.count, path.clone());
-            self.isdirs.push(isdir);
-            self.childrens.push(vec![]); /* unnecessary vec for files */
-            self.sizes.push(sz);
+            self.items.push(
+                FSItem { 
+                    isdir: isdir,
+                    children: vec![],
+                    size: sz 
+                }
+            );
+            /* increment count */
             self.count += 1;
         }
     }
@@ -186,12 +200,12 @@ impl Day7Parser {
             }
             // println!("pwdstk = {:?}", pwdstk);
             let pwd = pwdstk[pwdstk.len()-1];
-            let pwd_children = &self.childrens[pwd];
+            let pwd_children = &self.items[pwd].children;
             let mut pwdsz: usize = 0;
             /* loop over children */
             for luchix in 0..pwd_children.len() {
                 let chix = pwd_children[luchix];
-                if let Some(somesz) = self.sizes[chix] {
+                if let Some(somesz) = self.items[chix].size {
                     pwdsz += somesz;
                 }
                 else {
@@ -204,19 +218,20 @@ impl Day7Parser {
 
             /* getting here means all child sizes have been accounted for,
              * so let's set this pwd's size to tmpsz and pop pwd from pwdstk*/
-            self.sizes[pwd] = Some(pwdsz);
+            self.items[pwd].size = Some(pwdsz);
             // println!("pwdsz = {pwdsz}");
             pwdstk.pop();
         } /* 'outer: loop */
     }
 
     pub fn print_entry(&self, ix: usize) {
-        if ix < self.isdirs.len() {
+        if ix < self.items.len() {
+            let ch = &self.items[ix];
             println!("{ix:3}: d={}, sz={:?}, p={}, ch={:?}",
-                self.isdirs[ix],
-                self.sizes[ix],
+                ch.isdir,
+                ch.size,
                 self.intmap.get(&ix).unwrap(),
-                self.childrens[ix]
+                ch.children
             );
         }
     }
