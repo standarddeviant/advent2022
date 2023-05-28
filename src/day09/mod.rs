@@ -7,15 +7,15 @@ use crate::utils::read_lines;
 
 
 pub fn run(fname: &str) {
-    let s = input_parse(fname);
-    part1(&s);
+    let r2 = input_parse(fname, 2);
+    part1(&r2);
 }
 
-fn part1(s: &Day09State) {
+fn part1(s: &Rope) {
     println!("part1: s.tset.len() = {}", s.tset.len());
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct XY { x: i32, y: i32}
 
 impl fmt::Display for XY {
@@ -61,15 +61,15 @@ impl XY{
     }
 }
 
-struct Day09State { h: XY, t: XY, tset: HashSet<XY> }
+struct Rope { r: Vec<XY>, tset: HashSet<XY> }
 
-impl Day09State {
-    pub fn new() -> Day09State {
-        Day09State {
-            h: XY{ x:0, y:0 },
-            t: XY{ x:0, y:0 },
-            tset: HashSet::new()
+impl Rope {
+    pub fn new(rlen: usize) -> Rope {
+        let mut rvec: Vec<XY> = vec![];
+        for _ix in 0..rlen {
+            rvec.push(XY{ x:0, y:0 });
         }
+        return Rope { r: rvec, tset: HashSet::new() }
     }
     fn hmv(&mut self, dir: &str, n: i32) {
         // handle moving h
@@ -82,21 +82,26 @@ impl Day09State {
         };
 
         // println!("DBG: dir = {dir}, n={n}");
-        for _ix in 0..n {
+        for _nix in 0..n {
             // print!("   head moves {:}\n", self.h);
-            self.h.add(&mvadd);
+            self.r[0].add(&mvadd);
             // print!("              {:}\n", self.h);
             // print!("   tail moves {:}\n", self.t);
-            self.t.chase(&self.h);
+            /* 
+            */
+            for rix in 1..self.r.len() {
+                let tmp_chase_arg = self.r[rix-1].clone();
+                self.r[rix].chase(&tmp_chase_arg);
+            }
             // print!("              {:}\n", self.t);
-            self.tset.insert(self.t.clone());
+            self.tset.insert(self.r[self.r.len()-1].clone());
         }
     }
 }
 
-fn input_parse(fname: &str) -> Day09State {
+fn input_parse(fname: &str, ropelen: usize) -> Rope {
     // let mut out: HashSet<(i32, i32)> = HashSet::from([(0, 0)]);
-    let mut s = Day09State::new();
+    let mut s = Rope::new(ropelen);
 
     // let mut out: HashSet<(i32, i32)> = HashSet::from([h]);
     let repat = Regex::new(r"^([LRUD]) (\d+)").unwrap();
