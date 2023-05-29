@@ -1,6 +1,5 @@
 
 use regex::Regex;
-use std::collections::VecDeque;
 use crate::utils::read_lines;
 
 pub fn run(fname: &str) {
@@ -14,12 +13,6 @@ pub fn run(fname: &str) {
 
 }
 
-const CRTW: usize = 40;
-const CRTH: usize =  6;
-struct CRT {
-}
-
-// #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct CPU {
     x: i32,          /* X reg value */
     cycle: i32,      /* cycle count */
@@ -54,7 +47,7 @@ impl CPU {
             self.cycle += 1;
             // update CRT
             let px = {
-                let cmod = ((self.cycle-1) % 40);
+                let cmod = (self.cycle-1) % 40;
                 if self.x-1 <= cmod && cmod <= self.x + 1 {
                     '#'
                 }
@@ -97,7 +90,7 @@ impl CPU {
     pub fn noop(&mut self) { self.cycle_incr(1); }
 }
 
-fn parse_input(fname: &str, mut cvec: Vec<i32>) -> CPU {
+fn parse_input(fname: &str, cvec: Vec<i32>) -> CPU {
     let addx_repat = Regex::new(r"^addx (-?\d+)").unwrap();
     let noop_repat = Regex::new(r"^noop").unwrap();
     let mut cpu = CPU::new(cvec);
