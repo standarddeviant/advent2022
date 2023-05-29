@@ -7,20 +7,29 @@ pub fn run(fname: &str) {
     let part1_cvec: Vec<i32> = Vec::from([
         20, 60, 100, 140, 180, 220
     ]);
-    let p1 = parse_input(fname, part1_cvec);
-    println!("p1.ssum = {}", p1.ssum);
+    let cpu = parse_input(fname, part1_cvec);
+    println!("p1: cpu.ssum = {}", cpu.ssum);
+    println!("p2: cpu.display_pixels():");
+    cpu.display_pixels(); /* TODO - this could just return a string */
+
+}
+
+const CRTW: usize = 40;
+const CRTH: usize =  6;
+struct CRT {
 }
 
 // #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 struct CPU {
-    x: i32,         /* X reg value */
-    cycle: i32,     /* cycle count */
-    vix: usize,     /* index into vec variables */
-    xvec: Vec<i32>, /* x register value vec */
+    x: i32,          /* X reg value */
+    cycle: i32,      /* cycle count */
+    vix: usize,      /* index into vec variables */
+    xvec: Vec<i32>,  /* x register value vec */
     xsum: i32,
-    svec: Vec<i32>, /* signal strength vec */
+    svec: Vec<i32>,  /* signal strength vec */
     ssum: i32,
-    cvec: Vec<i32>  /* cycle vec at which to record xvec/svec */
+    cvec: Vec<i32>,  /* cycle vec at which to record xvec/svec */
+    pixels: Vec<char>
 }
 
 impl CPU {
@@ -36,12 +45,27 @@ impl CPU {
             xsum: 0,
             svec: vec![],
             ssum: 0,
-            cvec: cvec_arg
+            cvec: cvec_arg,
+            pixels: vec![]
         }
     }
     fn cycle_incr(&mut self, n: i32) {
         for _ix in 0..n {
             self.cycle += 1;
+            // update CRT
+            let px = {
+                let cmod = ((self.cycle-1) % 40);
+                if self.x-1 <= cmod && cmod <= self.x + 1 {
+                    '#'
+                }
+                else {
+                    '.'
+                }
+            };
+            // println!("DBG: CRT: self.x={:3}, self.cycle={:3}, pixel={}",
+            //     self.x, self.cycle, px
+            // );
+            self.pixels.push(px);
             if self.vix < self.cvec.len() {
                 if self.cycle == self.cvec[self.vix] {
                     self.xsum += self.x;
@@ -50,6 +74,18 @@ impl CPU {
                     self.svec.push(self.x * self.cycle);
                     self.vix += 1;
                 }
+            }
+        }
+    }
+    pub fn display_pixels(&self) {
+        for ix in 0..(40*6) {
+            if ix >= self.pixels.len() {
+                println!("ERR: pixels not long enough: {}", self.pixels.len());
+                return;
+            }
+            print!("{}", self.pixels[ix]);
+            if 0 == (ix+1) % 40 {
+                print!("\n");
             }
         }
     }
