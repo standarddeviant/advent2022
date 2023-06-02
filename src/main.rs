@@ -25,6 +25,7 @@ fn main() {
     // day08::run("day08/input.txt");
     // day10::run("day10/test.txt");
     // day10::run("day10/input.txt");
+    // day11::run("day11/test.txt");
     day11::run("day11/input.txt");
 }
 
