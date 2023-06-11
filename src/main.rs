@@ -31,6 +31,7 @@ fn main() {
     // day11::run("day11/input.txt");
     // day12::run("day12/test.txt");
     // day12::run("day12/input.txt");
-    day13::run("day13/test.txt");
+    // day13::run("day13/test.txt");
+    day13::run("day13/input.txt");
 }
 

@@ -8,14 +8,25 @@ use serde_json::Value::{Number, Array};
 
 
 pub fn run(fname: &str) {
+    part1(fname);
+}
+
+fn part1(fname: &str) {
+    let mut true_ix_sum = 0;
+    /* part 1 */
     let pairs = parse_input(fname);
-    for pair in &pairs {
+    for (ix, pair) in pairs.iter().enumerate() {
         if pair.len() != 2 { continue; }
         let (a, b) = (&pair[0], &pair[1]);
+        // println!("\na = {a:?}\nb = {b:?}");
         if let Some(ltval) = lt(a, b) {
-            println!("lt = {ltval}!!!!");
+            // println!("    lt = {ltval}!!!!");
+            if ltval {
+                true_ix_sum += (ix+1);
+            }
         }
     }
+    println!("part1: true_ix_sum = {true_ix_sum}");
 }
 
 
@@ -28,6 +39,7 @@ fn lt(basea: &Value, baseb: &Value) -> Option<bool> {
     match (ma, mb) {
         (Value::Number(na), Value::Number(nb)) => {
             let (na, nb) = (na.as_f64()?, nb.as_f64()?);
+            // println!("      DBG num/num lt!:\n    a={na:?}\n    b={nb:?}");
             if na < nb { return Some(true)  }
             if na > nb { return Some(false) }
             return None
@@ -35,26 +47,39 @@ fn lt(basea: &Value, baseb: &Value) -> Option<bool> {
         (Array(va), Array(vb)) => {
             let mut vda: VecDeque<&Value> = VecDeque::from_iter(va);
             let mut vdb: VecDeque<&Value> = VecDeque::from_iter(vb);
-            let (mut ixa, mut ixb) = (0, 0);
-            println!("    TODO array/array lt!:\n    a={vda:?}\n    b={vdb:?}");
-            for itma in vda {
-                println!("    itma = {itma:?}");
+            // let (mut ixa, mut ixb) = (0, 0);
+            // println!("    TODO array/array lt!:\n    a={vda:?}\n    b={vdb:?}");
+            let (mut tmpa, mut tmpb) = (0, 0);
+            loop {
+                /* NOTE: these checks could be at the top or bottom of loop,
+                         but an array may arrive into this function empty
+                         from the start */
+                /* return true (i.e. a < b) if a is empty and b still contains items */
+                if !vda.is_empty() &&  vdb.is_empty() { return Some(false); }
+                /* return false (i.e. a > b) if b is empty and a still contains items */
+                if  vda.is_empty() && !vdb.is_empty() { return Some(true); }
+                /* take an item from each list */
+
+                let (tmpa, tmpb) = ( vda.pop_front()?, vdb.pop_front()? );
+                if let Some(tmpbool) = lt(tmpa, tmpb) {
+                    return Some(tmpbool);
+                }
             }
             return None // FIXME
         },
         // if mismatched types, promote num to vec of len 1, then recall to array/array
         (Value::Array(va), Value::Number(nb)) => {
             let vb = Array(vec![Number(nb.clone())]);
-            println!("    DBG: promoted {nb} to {vb}");
+            // println!("    DBG: promoted {nb} to {vb}");
             return lt(ma, &vb);
         },
         (Value::Number(na), Value::Array(vb)) => {
             let va = Array(vec![Number(na.clone())]);
-            println!("    DBG: promoted {na:?} to {va}");
+            // println!("    DBG: promoted {na:?} to {va}");
             return lt(&va, mb);
         },
         _ => {
-            println!("Unhandled lt!:\n    a={ma:?}\n    b={mb:?}");
+            // println!("Unhandled lt!:\n    a={ma:?}\n    b={mb:?}");
             None // FIXME
         }
     }
@@ -246,7 +271,7 @@ fn parse_input(fname: &str) -> Vec<Vec<Value>> {
 
     for (ix, pstr) in pair_strings.iter().enumerate() {
         // let tmp: Pair = pstr.parse().unwrap();
-        println!("What to do w/ pstr (JSON?):\n{pstr}");
+        // println!("What to do w/ pstr (JSON?):\n{pstr}");
         if let Some(pair) = parse_pair(pstr) {
             out.push(pair);
         };
