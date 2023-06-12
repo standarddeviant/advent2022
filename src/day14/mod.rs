@@ -1,7 +1,5 @@
 use std::{fs, str, num::ParseIntError, time::Instant};
 use std::cmp::Ordering;
-
-use regex::internal::Inst;
 // use std::collections::HashSet;
 
 pub fn run(fname: &str) {
@@ -13,11 +11,9 @@ pub fn run(fname: &str) {
 fn part1(fname: &str) {
     let mut f = parse_file(fname);
     loop {
-        match f.place_sand() {
-            Some(xy) => {},
-            None         => {
-                break;
-            }
+        match f.place_sand(true) {
+            Some(_xy) => {        },
+            None          => { break; }
         }
     }
     println!("part1: placed_sand count = {}", f.count);
@@ -92,33 +88,46 @@ fn parse_line_fill(line: &str) -> Vec<XY> {
 // enum FillType {Rock, Sand}
 
 struct Formation {
+    path: Vec<XY>,
     fill: Vec<XY>,
     count: i32,
     yvoid: i32
 }
 
 impl Formation {
-    fn place_sand(&mut self) -> Option<XY> {
+    fn place_sand(&mut self, p1: bool) -> Option<XY> {
         /* send location */
-        let mut s = XY{ x: 500, y: 0 };
-        loop {
+        'outer: loop {
+            /* check if the path is totally empty, i.e., that we have
+               1. tried to place sand from all known path points
+               2. failed to place sand at all those path points */
+            if self.path.is_empty() { return None; }
+
+            /* set current start pos from last point in path */
+            let s = self.path[self.path.len() - 1];
+
             /* return None if this sand has fallen into the void */
-            if s.y >= self.yvoid { return None; }
+            if s.y >= self.yvoid && p1 { return None; }
 
             /* look for free space in order of dn, dnleft, dnright   */
-            // println!("DBG: s = {s:?}, yvoid={}", self.yvoid);
-            let space_dn = !self.fill.contains( &XY{x: s.x, y: s.y+1} );
-            if space_dn { s.y += 1; continue; }
-            let space_dnleft= !self.fill.contains( &XY{x: s.x-1, y: s.y+1} );
-            if space_dnleft{ s.x -= 1; s.y += 1; continue; }
-            let space_dnright= !self.fill.contains( &XY{x: s.x+1, y: s.y+1} );
-            if space_dnright { s.x += 1; s.y += 1; continue; }
+            let possible_empty_spaces = [
+                &XY{x: s.x  , y: s.y+1}, // dn
+                &XY{x: s.x-1, y: s.y+1}, // dnleft
+                &XY{x: s.x+1, y: s.y+1}  // dnright
+            ];
+            for space in possible_empty_spaces {
+                if !self.fill.contains(space) {
+                    self.path.push(*space);
+                    continue 'outer;
+                }
+            }
 
-            /* if we get here, the sand gets placed in fill, or falls to void */
-            // println!("placed sand @ {s:?}");
-            self.fill.push(s);
-            self.count += 1;
-            return Some(s);
+            /* getting here means we can place sand @ s, b/c self.fill already
+               contains dn, dnleft, and dnright */
+            self.fill.push(s); /* push XY to fill  */
+            self.path.pop();   /* pop XY from path */
+            self.count += 1;   /* increase count   */
+            return Some(s);    /* return Some(XY)  */
         }
     }
 }
@@ -145,15 +154,14 @@ impl str::FromStr for Formation {
         );
         let yvoid: i32 = fill[fill.len() - 1].y;
 
-        return Ok(Formation { fill: fill, count: 0, yvoid: yvoid });
+        let start_xy = XY { x: 500, y: 0 };
+        return Ok(Formation{path: vec![start_xy], fill: fill, count: 0, yvoid: yvoid });
     }
 }
 
 
 
 fn parse_file(fname: &str) -> Formation {
-    let mut out: Vec<XY> = vec![];
-    // let mut out: Vec<Vec<Value>> = vec![];
     let fstr = fs::read_to_string(fname)
         .expect(format!("File '{fname}' not readable.").as_str());
     return fstr.parse().unwrap();
