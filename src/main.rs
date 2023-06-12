@@ -14,7 +14,8 @@ pub mod utils;
 // mod day10;
 // mod day11;
 // mod day12;
-mod day13;
+// mod day13;
+mod day14;
 
 fn main() {
     // day01::run("day01/input.txt");
@@ -32,6 +33,8 @@ fn main() {
     // day12::run("day12/test.txt");
     // day12::run("day12/input.txt");
     // day13::run("day13/test.txt");
-    day13::run("day13/input.txt");
+    // day13::run("day13/input.txt");
+    // day14::run("day14/test.txt");
+    day14::run("day14/input.txt");
 }
 
