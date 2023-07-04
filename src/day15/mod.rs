@@ -1,16 +1,12 @@
-use std::fmt::format;
 use std::hash::Hash;
-use std::{cmp::{Ordering, min, max}, fs, ops, str};
-use std::{num::ParseIntError, time::Instant, iter::zip};
-use std::collections::HashSet;
+use std::{fs, ops, str};
+use std::{num::ParseIntError, time::Instant};
 use log::{debug, info};
 use plotters::style::full_palette::PURPLE;
 use regex::Regex;
-use geo::{Coord, LineString, Polygon, Contains, polygon, BooleanOps, MultiPolygon, CoordsIter, Point, InteriorPoint, EuclideanDistance, EuclideanLength, Centroid};
+use geo::{Coord, LineString, Polygon, polygon, BooleanOps, MultiPolygon, CoordsIter, EuclideanLength, Centroid};
 use geo::Area;
 // use geo_booleanop::boolean::BooleanOp;
-use indicatif::ProgressBar;
-// use termplot::*;
 use plotters::prelude::*;
 
 type XYNum = i32;
@@ -20,13 +16,101 @@ pub fn run(fname: &str, p1_yrow: i32, p2_bbox: (XYNum, XYNum)) {
     part2(fname, p2_bbox);
 }
 
-fn multi_poly_draw(mp: &MultiPolygon, name: &str, bbarg: (XYNum, XYNum)) {
-    let fname = format!("day15_{name}.svg");
-    let drawing_area = 
-        SVGBackend::new(fname.as_str(), (500, 500))
-        .into_drawing_area();
-    drawing_area.fill(&WHITE).unwrap();
+fn part1(fname: &str, yrow: i32) {
+    /* TODO - make timing function? */
+    let start = Instant::now();
+    let sbvec= parse_file(fname);
+    debug!("parse_file took {:?} seconds", start.elapsed());
 
+    let mut poly_vec: Vec<Polygon> = vec![];
+    let mut poly_agg: MultiPolygon<f64> = MultiPolygon::new(vec![]);
+    for (sbix, sb) in sbvec.iter().enumerate() {
+        let sb_poly = sb.multi_poly();
+        poly_vec.push(sb.poly());
+        // println!("sbix = {sbix}");
+        // poly_print(&sb_poly.0[0], "sb_poly");
+        let tmp_poly = poly_union(&poly_agg, &sb_poly);
+        poly_agg = tmp_poly;
+        // let tmps = format!("poly_agg_partial_{sbix:?}");
+        // multi_poly_draw(&poly_agg, tmps.as_str(), bbarg);
+    }
+    multi_poly_draw(&poly_agg, "poly_agg", (0, 4000000));
+
+    let (minx, maxx) = multi_poly_xlims(&poly_agg);
+    let eps = 0.1;
+    let row_poly = polygon![
+        (x: minx, y: yrow as f64-0.5_f64),
+        (x: maxx, y: yrow as f64-0.5_f64),
+        (x: maxx, y: yrow as f64+0.5_f64),
+        (x: minx, y: yrow as f64+0.5_f64)
+    ];
+    debug!("yrow = {yrow}");
+    let row_mpoly= MultiPolygon::from_iter(vec![row_poly]);
+    // multi_poly_draw(&row_mpoly, "row_mpoly", (0, 4000000));
+    let inter = poly_agg.intersection(&row_mpoly);
+    debug!("inter = {inter:?}");
+    // this seems to work w/o running into edge cases, which is somewhat surprising 
+    // this could just be an artifact of this particular data
+    println!("part1: row_poly inter area = {:?}", inter.unsigned_area().ceil());
+}
+
+
+fn part2(fname: &str, bbarg: (XYNum, XYNum)) {
+    /* TODO - make timing function? */
+    let start = Instant::now();
+    let sbvec = parse_file(fname);
+
+    info!("sbvec.len() = {}", sbvec.len());
+    for (ix, sb) in sbvec.iter().enumerate() {
+        debug!("sb [{ix}] = {sb:?}");
+    }
+
+    let mut poly_vec: Vec<Polygon> = vec![];
+    let mut poly_agg: MultiPolygon<f64> = MultiPolygon::new(vec![]);
+    for (sbix, sb) in sbvec.iter().enumerate() {
+        let sb_poly = sb.multi_poly();
+        poly_vec.push(sb.poly());
+        // println!("sbix = {sbix}");
+        // poly_print(&sb_poly.0[0], "sb_poly");
+        let tmp_poly = poly_union(&poly_agg, &sb_poly);
+        poly_agg = tmp_poly;
+        let tmps = format!("poly_agg_partial_{sbix:?}");
+        multi_poly_draw(&poly_agg, tmps.as_str(), bbarg);
+    }
+    let multi_poly_vec: MultiPolygon<f64> = MultiPolygon::from(poly_vec);
+    // multi_poly_print(&poly_agg, "poly_agg");
+    // multi_poly_draw(&poly_agg, "poly_agg", bbarg);
+    // multi_poly_draw(&multi_poly_vec, "multi_poly_vec", bbarg);
+
+    let mut theone: Coord = Coord{x: -1., y: -1.};
+    for p in poly_agg.0 {
+        for int in p.interiors() {
+            let tmpp = Polygon::new(int.clone(), vec![]);
+            let minside = int.lines().into_iter()
+                .map(|tmpl| tmpl.euclidean_length())
+                .reduce(|l1, l2| l1.min(l2)).unwrap();
+            let maxside = int.lines().into_iter()
+                .map(|tmpl| tmpl.euclidean_length())
+                .reduce(|l1, l2| l1.max(l2)).unwrap();
+            if (maxside - minside).abs() > 0.001 {
+                continue;
+            }
+
+            info!("yippee!!!!! we got it!");
+            info!("interior @ {int:?}");
+            info!("    unsigned_area = {}", tmpp.unsigned_area());
+            info!("    minside       = {minside}");
+            info!("    maxside       = {maxside}");
+            info!("    centroid      = {:?}", tmpp.centroid());
+            theone = tmpp.centroid().unwrap().0;
+        }
+    }
+    let freq: i128 = (theone.x as i128) * (4000000 as i128) + (theone.y as i128);
+    println!("part2: distress beacon is at {theone:?}");
+    println!("part2: tuning frequency is {freq}");
+}
+
+fn multi_poly_xlims(mp: &MultiPolygon) -> (f64, f64) {
     let epts: Vec<Coord> = mp.exterior_coords_iter().collect();
     let minx = epts.iter()
         .map(|ept| ept.x)
@@ -36,6 +120,11 @@ fn multi_poly_draw(mp: &MultiPolygon, name: &str, bbarg: (XYNum, XYNum)) {
         .map(|ept| ept.x)
         .reduce(|e1, e2| e1.max(e2))
         .unwrap();
+    return (minx, maxx);
+}
+
+fn multi_poly_ylims(mp: &MultiPolygon) -> (f64, f64) {
+    let epts: Vec<Coord> = mp.exterior_coords_iter().collect();
     let miny = epts.iter()
         .map(|ept| ept.y)
         .reduce(|e1, e2| e1.min(e2))
@@ -44,7 +133,18 @@ fn multi_poly_draw(mp: &MultiPolygon, name: &str, bbarg: (XYNum, XYNum)) {
         .map(|ept| ept.y)
         .reduce(|e1, e2| e1.max(e2))
         .unwrap();
+    return (miny, maxy);
+}
 
+fn multi_poly_draw(mp: &MultiPolygon, name: &str, bbarg: (XYNum, XYNum)) {
+    let fname = format!("day15_{name}.svg");
+    let drawing_area = 
+        SVGBackend::new(fname.as_str(), (500, 500))
+        .into_drawing_area();
+    drawing_area.fill(&WHITE).unwrap();
+
+    let (minx, maxx) = multi_poly_xlims(mp);
+    let (miny, maxy) = multi_poly_ylims(mp);
     let x_spec = minx .. maxx;
     let y_spec = miny .. maxy;
     let mut chart_builder = ChartBuilder::on(&drawing_area);
@@ -123,12 +223,7 @@ fn multi_poly_print(mp: &MultiPolygon, name: &str) {
 }
 
 fn poly_union(p1: &MultiPolygon, p2: &MultiPolygon) -> MultiPolygon {
-    let tmp = p1.union(&p2);
-    /*
-    for tmptmp in tmp.0 {
-        println!("tmp poly = {tmptmp:?}");
-    }
-    */
+    // let tmp = p1.union(&p2);
     return p1.union(&p2);
 }
 
@@ -147,155 +242,6 @@ fn poly_test() {
     poly_print(&p5, "p5");
 } */
  
-
-
-fn part2(fname: &str, bbarg: (XYNum, XYNum)) {
-    /* TODO - make timing function? */
-    let start = Instant::now();
-    let sbvec = parse_file(fname);
-
-    info!("sbvec.len() = {}", sbvec.len());
-    for (ix, sb) in sbvec.iter().enumerate() {
-        debug!("sb [{ix}] = {sb:?}");
-    }
-
-    let mut poly_vec: Vec<Polygon> = vec![];
-    let mut poly_agg: MultiPolygon<f64> = MultiPolygon::new(vec![]);
-    for (sbix, sb) in sbvec.iter().enumerate() {
-        let sb_poly = sb.multi_poly();
-        poly_vec.push(sb.poly());
-        // println!("sbix = {sbix}");
-        // poly_print(&sb_poly.0[0], "sb_poly");
-        let tmp_poly = poly_union(&poly_agg, &sb_poly);
-        poly_agg = tmp_poly;
-        let tmps = format!("poly_agg_partial_{sbix:?}");
-        multi_poly_draw(&poly_agg, tmps.as_str(), bbarg);
-    }
-    let multi_poly_vec: MultiPolygon<f64> = MultiPolygon::from(poly_vec);
-    // multi_poly_print(&poly_agg, "poly_agg");
-    // multi_poly_draw(&poly_agg, "poly_agg", bbarg);
-    // multi_poly_draw(&multi_poly_vec, "multi_poly_vec", bbarg);
-
-    let mut theone: Coord = Coord{x: -1., y: -1.};
-    for p in poly_agg.0 {
-        for int in p.interiors() {
-            let tmpp = Polygon::new(int.clone(), vec![]);
-            let minside = int.lines().into_iter()
-                .map(|tmpl| tmpl.euclidean_length())
-                .reduce(|l1, l2| l1.min(l2)).unwrap();
-            let maxside = int.lines().into_iter()
-                .map(|tmpl| tmpl.euclidean_length())
-                .reduce(|l1, l2| l1.max(l2)).unwrap();
-            if (maxside - minside).abs() > 0.001 {
-                continue;
-            }
-
-            info!("yippee!!!!! we got it!");
-            info!("interior @ {int:?}");
-            info!("    unsigned_area = {}", tmpp.unsigned_area());
-            info!("    minside       = {minside}");
-            info!("    maxside       = {maxside}");
-            info!("    centroid      = {:?}", tmpp.centroid());
-            theone = tmpp.centroid().unwrap().0;
-        }
-    }
-    let freq: i128 = (theone.x as i128) * (4000000 as i128) + (theone.y as i128);
-    println!("part2: distress beacon is at {theone:?}");
-    println!("part2: tuning frequency is {freq}");
-}
-
-fn part1(fname: &str, yrow: i32) {
-    /* TODO - make timing function? */
-    let start = Instant::now();
-    let sbvec= parse_file(fname);
-    debug!("parse_file took {:?} seconds", start.elapsed());
-
-    /* aggregate each source-beacon-coverage intersections w/ yrow */
-    let mut intrs: Vec<(i32, i32)> = vec![];
-    for (ix, sb) in sbvec.iter().enumerate() {
-        if let Some(intr) = sb.row_intersection(yrow) {
-            intrs.push(intr);
-        }
-    }
-
-    /* combine overlapping intrs */
-    let intrs = combine_intrs(intrs);
-    let mut intrs_accum: i32 = intrs.iter()
-        .map(|a: &(XYNum, XYNum)| a.1 as i32 - a.0 + 1)
-        .sum();
-    // info!("intrs_accum = {intrs_accum}");
-    // for (ix, intr) in intrs.iter().enumerate() { 
-    //     info!("combined intr [{ix:2}] = {intr:?}")
-    // }
-
-    /* subtract sources and beacons that are in yrow */
-    let sb_intrs_overlap = intrs_contains(yrow, &intrs, &sbvec);
-    intrs_accum -= sb_intrs_overlap;
-
-    println!("part1: yrow={yrow}, intrs_accum = {intrs_accum}\n");
-
-}    
-
-
-fn intrs_contains(y: XYNum, intrs: &Vec<(XYNum, XYNum)>, sbvec: &Vec<SB>) -> i32 {
-    let mut contained: HashSet<XY> = HashSet::new();
-    for sb in sbvec {
-        for xy in [sb.s, sb.b] {
-            if xy.y != y { continue; }
-            for intr in intrs {
-                if intr.0 <= xy.x && xy.x <= intr.1 {
-                    contained.insert(xy);
-                    break;
-                }
-            }
-        }
-    }
-    return contained.len() as i32;
-    // return -1;
-}
-
-fn sort_intrs(intrs: &mut Vec<(XYNum, XYNum)>) {
-    intrs.sort_by(|a, b| -> Ordering {
-        /* key off lower first */
-        if a.0 < b.0 { return Ordering::Less    }
-        if a.0 > b.0 { return Ordering::Greater }
-        /* key off higher second */
-        if a.1 < b.1 { return Ordering::Less    }
-        if a.1 > b.1 { return Ordering::Greater }
-        /* return same if equal */
-        return Ordering::Equal;
-    });
-}
-
-fn combine_intrs(intrs_arg: Vec<(XYNum, XYNum)>) -> Vec<(XYNum, XYNum)> {
-    let mut intrs_out: Vec<(XYNum, XYNum)> = vec![];
-    let mut intrs: Vec<(XYNum, XYNum)> = intrs_arg.clone();
-    if intrs_arg.is_empty() { return vec![] }
-
-    /* first, sort intrs */
-    sort_intrs(&mut intrs);
-
-    /* then combine into output */
-    let mut i = intrs[0];
-    for ix in 1..intrs.len() {
-        let intr = intrs[ix];
-        // info!("  DBG: i = {i:?}, intr = {intr:?}");
-        /* check if overlapping */
-        if i.1 >= intr.0 {
-            if intr.1 > i.1 {
-                // print!("    updating i from {i:?} ");
-                i.1 = intr.1.max(i.1);
-                // info!(" to {i:?} ");
-            }
-            continue;
-        }
-        intrs_out.push(i);
-        i = intr;
-    }
-    intrs_out.push(i);
-
-    return intrs_out;
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct XY { x: XYNum, y: XYNum}
@@ -323,35 +269,6 @@ impl ops::Mul<i32> for XY {
             y: self.y * other
         }
     }
-}
-// fn x(u: XY, v: XY) -> f64 { (u.x * v.y - u.y * v.x) as f64 }
-fn segment_intersection(s0: (XY, XY), s1: (XY, XY)) -> Vec<(f64, f64)> {
-    let m0 = (s0.1.y-s0.0.y) as f64 / (s0.1.x-s0.0.x) as f64;
-    let b0 = (s0.0.y - s0.0.x) as f64;
-
-    let m1 = (s1.1.y-s1.0.y) as f64 / (s1.1.x-s1.0.x) as f64;
-    let b1 = (s1.0.y - s1.0.x) as f64;
-
-    let (a, c, b, d) = (m0, b0, m1, b1);
-
-    let tmp = (d-c) / (a-b);
-    let p = (tmp, a * tmp + c);
-
-    let xrange = (
-        min( min(s0.0.x, s0.1.x), min(s1.0.x, s1.1.x) ),
-        max( max(s0.0.x, s0.1.x), max(s1.0.x, s1.1.x) )
-    );
-
-    // debug!("");
-    debug!("s0={s0:?}, m0={m0}, b0={b0}");
-    debug!("s1={s1:?}, m1={m1}, b1={b1}");
-    debug!("    p = {p:?}");
-    debug!("    xrange = {xrange:?}");
-    if xrange.0 as f64 <= p.0 && p.0 <= xrange.1 as f64 {
-        debug!(">>> INTERSECTION @ {p:?}, s0={s0:?}, s1={s1:?}");
-        return vec![p];
-    }
-    return vec![];
 }
 
 impl str::FromStr for XY {
@@ -387,60 +304,17 @@ impl str::FromStr for SB {
 }
 impl SB {
     pub fn multi_poly(&self) -> MultiPolygon {
-        let mut pts = self.points().map(|xy| { (xy.x as f64, xy.y as f64)});
+        let pts = self.points().map(|xy| { (xy.x as f64, xy.y as f64)});
         let line_string: LineString = LineString::from_iter( pts.into_iter() );
         let poly = Polygon::new(line_string, vec![]);
         let out = MultiPolygon::from(vec![poly]);
         return out;
     }
-    pub fn poly_contains(&self, xy: &XY) -> bool {
-        let p = self.poly();
-        let c: Coord<f64> = Coord { x: xy.x as f64, y: xy.y as f64 };
-        return p.contains(&c);
-    }
     pub fn poly(&self) -> Polygon {
-        // let eps = 0.001_f64;
         let pts = self.points().map(|xy| { (xy.x as f64, xy.y as f64)});
-        /* make diamond slightly bigger in prep for call to 'contains'
-           NOTE: this is just to catch points that lie along the edge of a diamond */
-        // pts[0].1 -= eps; // N, y
-        // pts[1].0 += eps; // E, x
-        // pts[2].1 += eps; // S, y
-        // pts[3].0 -= eps; // W, x
-        
         let line_string: LineString = LineString::from_iter( pts.into_iter() );
         return Polygon::new(line_string, vec![]);
     }
-    // https://math.stackexchange.com/a/1425630/97198
-    /*
-    pub fn poly_intersections(&self, other: &SB) -> Vec<(f64, f64)> {
-        let mut out: Vec<(f64, f64)> = vec![];
-        // fn L(A: XY, B: XY, t: T) -> XY {
-        //     return XY{
-        //         x: (B.x - A.x)*t + A.x,
-        //         y: (B.y - A.y)*t + A.y
-        //     }
-        // }
-
-        // println!("\n");
-        let a = self.points();
-        let b = other.points();
-
-        /* check all four line segments against different-slope other line segments */
-        out.extend(segment_intersection( (a[0], a[1]), (b[1], b[2]) ));
-        out.extend(segment_intersection( (a[0], a[1]), (b[3], b[0]) ));
-
-        out.extend(segment_intersection( (a[1], a[2]), (b[2], b[3]) ));
-        out.extend(segment_intersection( (a[1], a[2]), (b[0], b[1]) ));
-
-        out.extend(segment_intersection( (a[2], a[3]), (b[3], b[0]) ));
-        out.extend(segment_intersection( (a[2], a[3]), (b[1], b[2]) ));
-
-        out.extend(segment_intersection( (a[3], a[0]), (b[0], b[1]) ));
-        out.extend(segment_intersection( (a[3], a[0]), (b[2], b[3]) ));
-
-        return out;
-    } */
     fn points(&self) -> [XY; 4] {
         let r = self.radius();
         debug!("r = {r}");
@@ -453,15 +327,6 @@ impl SB {
         ];
         debug!("self = {self:?}, points = {out:?}");
         return out;
-    }
-    pub fn row_intersection(&self, y: i32) -> Option<(i32, i32)> {
-        let r = self.radius();
-        let ydiff = (y - self.s.y).abs();
-        if ydiff <= r {
-            let d = r - ydiff;
-            return Some((self.s.x-d, self.s.x+d));
-        }
-        return None;
     }
     fn radius(&self) -> i32 {
         (self.s.x - self.b.x).abs() + 
